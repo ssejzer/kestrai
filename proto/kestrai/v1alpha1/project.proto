@@ -1,0 +1,60 @@
+// Copyright 2026 The Kestrai Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package kestrai.v1alpha1;
+
+import "kestrai/v1alpha1/meta.proto";
+
+option go_package = "github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1";
+
+// Project is the top-level container for related workflows, agents, and runs.
+// It is tenant-scoped (metadata.tenant_id) but project-global: metadata.project
+// is always empty for a Project resource itself.
+message Project {
+  ObjectMeta metadata = 1;
+  ProjectSpec spec = 2;
+  ProjectStatus status = 3;
+}
+
+message ProjectSpec {
+  // Human-friendly name. metadata.name is the slug used everywhere else.
+  string display_name = 1;
+
+  // Free-form prose, surfaced in the CLI and GUI.
+  string description = 2;
+
+  // Name of the ModelProvider resource agents in this project use by
+  // default. Individual Agents may override.
+  string default_model_provider = 3;
+
+  // Caps spend at the project level. Absent means unlimited.
+  Budget budget = 4;
+
+  // Secrets this project is allowed to reference. Names of Secret
+  // resources within the same tenant.
+  repeated string secret_refs = 5;
+}
+
+message ProjectStatus {
+  // Standard K8s-style conditions. Conventional types: "Ready", "BudgetOk".
+  repeated Condition conditions = 1;
+
+  // Most recent metadata.generation a reconciler has fully processed.
+  int64 observed_generation = 2;
+
+  // Running spend total, decimal string. Compared against spec.budget.usd_cap.
+  string spend_usd = 3;
+}

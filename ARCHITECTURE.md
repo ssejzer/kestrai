@@ -83,4 +83,21 @@ scripts/             Build, lint, header-check helpers.
 
 When an implementation question is not answered by the canonical spec, decide, document the rationale here as a new `## ADR-NNN: short title` section, and proceed. ADRs are append-only; supersede an old one with a new one rather than rewriting it.
 
-(No ADRs yet.)
+### ADR-001: Proto layout for `kestrai.v1alpha1`
+
+**Context.** Phase 0 needs protobuf definitions for `Project` and `Workflow` plus the toolchain to compile them. The canonical spec is silent on file layout, Go package strategy, and how to model K8s-style metadata in proto.
+
+**Decision.**
+
+- **Directory.** `proto/kestrai/v1alpha1/` — one file per resource (`project.proto`, `workflow.proto`) plus `meta.proto` for the shared envelope and cross-resource types (`ObjectMeta`, `Condition`, `ListMeta`, `Budget`). Buf's `PACKAGE_DIRECTORY_MATCH` lint rule is satisfied because the path mirrors the package name.
+- **Proto package.** `kestrai.v1alpha1`. Bumps to `v1beta1` / `v1` are new directories and new packages, not in-place edits — `v1alpha1` may break freely.
+- **Go package.** `github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1`, generated with `paths=source_relative`, short package name `v1alpha1`. Consumers alias on import (`kestraiv1 "..."/v1alpha1`).
+- **Generated module isolation.** `gen/go/` is its own Go module (already wired in `go.work`). `make proto` runs `buf generate` then `cd gen/go && go mod tidy`, so protobuf-runtime churn never touches the main `go.mod`.
+- **Envelope shape.** Every resource is `{ ObjectMeta metadata; <Resource>Spec spec; <Resource>Status status; }`. K8s-faithful.
+- **No `TypeMeta` in proto.** `apiVersion` and `kind` are intrinsic to the message type on the wire; they only matter at the YAML boundary. The CLI's YAML codec will stamp them on marshal and consume them on unmarshal. Keeping them out of proto avoids a useless nested object in every gRPC payload.
+- **`tenant_id` on `ObjectMeta`, not per-resource.** Every tenant-scoped resource inherits it uniformly; there is no way to forget it on a new resource. Tenant-global resources (e.g. `Project` itself, `ModelProvider`, `Plugin`) leave `metadata.project` empty but still carry `tenant_id`.
+- **`Budget` in `meta.proto`.** Both `Project` and `Workflow` reference it; putting it in a resource-specific file would create a sibling import. Promotes cleanly to a separate `common.proto` if more cross-resource domain types appear.
+- **Buf v2 config.** `buf.yaml` and `buf.gen.yaml` at repo root, both `version: v2`. Lint preset `STANDARD` (which includes `ENUM_VALUE_PREFIX`, `ENUM_ZERO_VALUE_SUFFIX`, `PACKAGE_VERSION_SUFFIX`, etc.); breaking-change rules at `FILE` scope so renames inside a file are caught.
+- **No gRPC service definitions yet.** The user-facing request was for resource types and the toolchain. Service definitions (`ProjectService`, `WorkflowService`) land alongside the API server work and will live in `proto/kestrai/v1alpha1/*_service.proto`.
+
+**Consequences.** Adding a new resource is mechanical: create `proto/kestrai/v1alpha1/<name>.proto`, import `meta.proto`, follow the `{metadata, spec, status}` shape, run `make proto`. Tenant scoping is automatic for any resource that embeds `ObjectMeta`. Bumping the API to `v1beta1` is a fork of the directory, not a migration.

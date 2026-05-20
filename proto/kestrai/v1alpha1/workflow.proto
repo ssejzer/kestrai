@@ -1,0 +1,97 @@
+// Copyright 2026 The Kestrai Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package kestrai.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "kestrai/v1alpha1/meta.proto";
+
+option go_package = "github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1";
+
+// Workflow is the "Deployment" analogue: a declarative DAG of agent tasks.
+// Reconciling a Workflow does not execute it; clients submit a Run to do that.
+// The shape mirrors §6 of the canonical build spec.
+message Workflow {
+  ObjectMeta metadata = 1;
+  WorkflowSpec spec = 2;
+  WorkflowStatus status = 3;
+}
+
+message WorkflowSpec {
+  // Natural-language objective the workflow should achieve.
+  string goal = 1;
+
+  // Structured non-functional inputs (stack, deadline, budget).
+  WorkflowConstraints constraints = 2;
+
+  // Ordered list of phases. Phases run sequentially; agents within a phase
+  // may run in parallel up to phase.parallelism.
+  repeated WorkflowPhase pipeline = 3;
+}
+
+message WorkflowConstraints {
+  // Technology stack the run should target ("typescript", "postgres", ...).
+  repeated string stack = 1;
+
+  // Latest the run is allowed to finish. Optional.
+  google.protobuf.Timestamp deadline = 2;
+
+  // Run-level budget cap. If unset, falls back to the owning Project's budget.
+  Budget budget = 3;
+}
+
+message WorkflowPhase {
+  // Phase identifier: "inception", "planning", "execution", "review", ...
+  // Free-form so users can define custom phases.
+  string name = 1;
+
+  // Names of Agent resources to instantiate in this phase.
+  repeated string agents = 2;
+
+  // Whether the phase requires a human gate before starting.
+  ApprovalPolicy approval = 3;
+
+  // Maximum agents that may run concurrently in this phase.
+  // 0 means "no phase-level limit"; the scheduler still applies its own.
+  int32 parallelism = 4;
+
+  // When true, any failure in this phase blocks the next phase.
+  bool gating = 5;
+}
+
+// ApprovalPolicy controls whether a phase pauses for human approval.
+enum ApprovalPolicy {
+  APPROVAL_POLICY_UNSPECIFIED = 0;
+  // Phase starts automatically when its predecessors complete.
+  APPROVAL_POLICY_NONE = 1;
+  // Phase blocks until a user calls `kestrai approve run/<id> --phase <name>`.
+  APPROVAL_POLICY_HUMAN = 2;
+}
+
+message WorkflowStatus {
+  // Standard K8s-style conditions. Conventional types: "Ready", "Validated".
+  // Run-execution state lives on the Run resource, not here.
+  repeated Condition conditions = 1;
+
+  // Most recent metadata.generation a reconciler has fully processed.
+  int64 observed_generation = 2;
+
+  // Number of Runs currently executing this workflow.
+  int32 active_run_count = 3;
+
+  // Name of the most recent Run resource for this workflow, if any.
+  string last_run_ref = 4;
+}

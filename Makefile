@@ -13,6 +13,7 @@ SHELL := /bin/bash
 GO            ?= go
 UV            ?= uv
 PNPM          ?= pnpm
+BUF           ?= buf
 
 VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)
 GO_LDFLAGS    := -X main.version=$(VERSION)
@@ -68,7 +69,7 @@ $(BIN_DIR):
 # ---------------------------------------------------------------------------
 
 .PHONY: lint
-lint: lint-go lint-python lint-node lint-headers ## Lint everything.
+lint: lint-go lint-python lint-node lint-headers lint-proto ## Lint everything.
 
 .PHONY: lint-go
 lint-go: ## Go vet + gofmt check.
@@ -89,6 +90,12 @@ lint-node: ## Run lint scripts across pnpm workspaces (if any).
 .PHONY: lint-headers
 lint-headers: ## Verify Apache 2.0 headers on every source file.
 	./scripts/check-license-headers.sh
+
+.PHONY: lint-proto
+lint-proto: ## Lint .proto files with buf.
+	@command -v $(BUF) >/dev/null 2>&1 || { \
+		echo "buf is required: https://buf.build/docs/installation"; exit 1; }
+	$(BUF) lint
 
 # ---------------------------------------------------------------------------
 # Test
@@ -118,8 +125,11 @@ test-e2e: ## Phase-0 end-to-end smoke (placeholder until `kestrai up` lands).
 # ---------------------------------------------------------------------------
 
 .PHONY: proto
-proto: ## Regenerate protobuf stubs (Phase-0 placeholder; no .proto files yet).
-	@echo "proto target is a Phase-0 placeholder. Stubs will be generated when .proto files land."
+proto: ## Regenerate protobuf stubs into gen/go/.
+	@command -v $(BUF) >/dev/null 2>&1 || { \
+		echo "buf is required: https://buf.build/docs/installation"; exit 1; }
+	$(BUF) generate
+	@cd gen/go && $(GO) mod tidy
 
 # ---------------------------------------------------------------------------
 # Clean

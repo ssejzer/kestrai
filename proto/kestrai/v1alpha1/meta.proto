@@ -1,0 +1,116 @@
+// Copyright 2026 The Kestrai Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Shared envelope and cross-resource types for the kestrai.v1alpha1 API.
+// Resource-specific messages live in their own files (project.proto,
+// workflow.proto, ...) and embed ObjectMeta from this file.
+
+syntax = "proto3";
+
+package kestrai.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1";
+
+// ObjectMeta is the metadata block every Kestrai resource carries.
+// Modeled after Kubernetes ObjectMeta — copy conventions faithfully.
+message ObjectMeta {
+  // User-facing identifier, unique within (tenant_id, project) for
+  // project-scoped resources or within tenant_id for tenant-global
+  // resources. DNS-1123 subdomain rules apply.
+  string name = 1;
+
+  // Scopes the resource to a tenant. The local-dev profile auto-fills
+  // "default"; v1 deliberately exposes no --tenant flag in the CLI.
+  // Tenant-scoped resources MUST set this — enforced at the API layer.
+  string tenant_id = 2;
+
+  // Namespaces a resource within a tenant. Empty for tenant-global
+  // resources (Project itself, ModelProvider, Plugin, AuthProvider, ...).
+  string project = 3;
+
+  // Server-assigned UUID. Immutable for the lifetime of the resource.
+  string uid = 4;
+
+  // Opaque optimistic-concurrency token. Clients pass it back unchanged
+  // on update; the server rejects writes carrying a stale value.
+  string resource_version = 5;
+
+  // Bumps on every spec change. Status writes do not bump it, so
+  // controllers can compare status.observed_generation to detect drift.
+  int64 generation = 6;
+
+  // Set by the API server on insert. Immutable thereafter.
+  google.protobuf.Timestamp creation_timestamp = 7;
+
+  // Set when a client requests deletion. While set, finalizers run; the
+  // row is removed only after every finalizer has cleared.
+  google.protobuf.Timestamp deletion_timestamp = 8;
+
+  // Selectable key/value pairs (kubectl-style label selectors).
+  map<string, string> labels = 9;
+
+  // Non-identifying metadata. Free-form, not selectable.
+  map<string, string> annotations = 10;
+
+  // Each entry blocks deletion until the responsible controller removes it.
+  repeated string finalizers = 11;
+}
+
+// Condition is the standard status-condition shape borrowed from K8s.
+// Controllers append/update these to expose progress and failure reasons.
+message Condition {
+  // Identifier for the condition: "Ready", "Progressing", "Failed", ...
+  // Resource-specific condition types are conventions, not an enum.
+  string type = 1;
+
+  // "True", "False", or "Unknown". Free-form string to match K8s.
+  string status = 2;
+
+  // Short, machine-readable CamelCase token explaining the current state.
+  string reason = 3;
+
+  // Human-readable explanation, suitable for surfacing in CLI/GUI.
+  string message = 4;
+
+  // When the status field last flipped.
+  google.protobuf.Timestamp last_transition_time = 5;
+
+  // Pins this condition to a specific spec generation.
+  int64 observed_generation = 6;
+}
+
+// ListMeta is returned alongside any list response.
+message ListMeta {
+  // Opaque continuation token; pass it back to fetch the next page.
+  string continue_token = 1;
+
+  // Server-estimated remaining items, if known. Best-effort.
+  int64 remaining_item_count = 2;
+}
+
+// Budget caps spend at a project or workflow scope. Lives here rather than
+// in project.proto because both Project and Workflow reference it and we
+// want to avoid a cross-resource import cycle.
+message Budget {
+  // Hard ceiling, in USD. Runs that would exceed it are rejected.
+  // Encoded as a decimal string to avoid float drift; parsed server-side.
+  string usd_cap = 1;
+
+  // Scope of the cap: "per_run", "monthly", "lifetime", ...
+  // Free-form for v1alpha1; will be promoted to an enum when semantics
+  // stabilize in v1beta1.
+  string window = 2;
+}
