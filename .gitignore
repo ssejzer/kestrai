@@ -65,3 +65,8 @@ Thumbs.db
 coverage.out
 coverage.xml
 htmlcov/
+
+# Agents context
+AGENTS.md
+CLAUDE.md
+

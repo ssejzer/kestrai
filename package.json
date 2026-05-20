@@ -1,0 +1,22 @@
+{
+  "name": "kestrai-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "pnpm workspace root for the Kestrai TypeScript packages (web GUI in Phase 2, TS SDK in Phase 2).",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kestrai/kestrai.git"
+  },
+  "homepage": "https://kestrai.dev",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "lint": "pnpm -r --if-present run lint",
+    "test": "pnpm -r --if-present run test",
+    "build": "pnpm -r --if-present run build"
+  }
+}

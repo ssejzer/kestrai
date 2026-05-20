@@ -6,21 +6,9 @@ Thanks for your interest in helping build Kestrai. This guide covers the dev set
 
 This project follows the [Contributor Covenant 2.1](./CODE_OF_CONDUCT.md). By participating, you agree to uphold it.
 
-## Developer Certificate of Origin (DCO)
+## Licensing of contributions
 
-We use the [DCO](https://developercertificate.org/) instead of a CLA. Every commit must include a `Signed-off-by` line:
-
-```
-git commit -s -m "your message"
-```
-
-This adds:
-
-```
-Signed-off-by: Your Name <you@example.com>
-```
-
-CI rejects PRs whose commits are not signed off. Use `git commit --amend -s` or `git rebase --signoff` to fix unsigned commits.
+Kestrai uses the GitHub default of **inbound = outbound**: by opening a pull request, you license your contribution to the project under the same [Apache 2.0](./LICENSE) license that covers the rest of the codebase. No CLA, no DCO sign-off, no separate paperwork.
 
 ## Dev setup
 
@@ -105,7 +93,6 @@ Before opening a PR:
 
 - [ ] `make lint` passes
 - [ ] `make test` passes
-- [ ] Each commit is signed off (`git commit -s`)
 - [ ] New errors have `KE-xxxx` codes and a `docs/errors/KE-xxxx.md` entry
 - [ ] New CRDs have reconciler tests with desired/actual fixtures
 - [ ] Docs touched if user-visible behavior changed

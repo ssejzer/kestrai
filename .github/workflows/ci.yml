@@ -1,0 +1,103 @@
+# Kestrai CI.
+#
+# One workflow, language-scoped jobs running in parallel. Each job is
+# independent so a Python-only change does not need a Go toolchain.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: go
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        arch: [amd64, arm64]
+        exclude:
+          # GitHub-hosted ubuntu runners are amd64-only; macos runners are arm64.
+          - os: ubuntu-latest
+            arch: arm64
+          - os: macos-latest
+            arch: amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+      - name: vet + gofmt
+        run: make lint-go
+      - name: test
+        run: make test-go
+      - name: build
+        run: make build
+
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: sync
+        run: uv sync
+      - name: lint
+        run: make lint-python
+      - name: test
+        run: make test-python
+
+  node:
+    name: node
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+      - name: install
+        run: pnpm install --frozen-lockfile
+      - name: lint
+        run: make lint-node
+      - name: test
+        run: make test-node
+
+  headers:
+    name: license headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check Apache 2.0 headers
+        run: make lint-headers
+
+  links:
+    name: docs link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --max-concurrency 4 --exclude-mail './**/*.md'
+          fail: false
