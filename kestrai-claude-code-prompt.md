@@ -6,7 +6,12 @@
 
 ## 1. Mission
 
-Build the **"Kubernetes of AI agents"**: an open-source, declarative orchestrator that takes a high-level spec and coordinates a fleet of specialized agents to deliver software end-to-end. A user writes a YAML spec describing what they want built. The orchestrator launches a graph of agents that refine requirements, plan, design, code, test, review, and ship — with full observability, pluggability, and the ability to swap any agent, model, or tool.
+Build the **"Kubernetes of AI agents"**: an open-source, declarative orchestrator that takes a high-level spec and coordinates a fleet of specialized agents to drive real work to completion. A user writes a YAML spec describing the goal — software to ship, a cluster to operate, a runbook to execute — and Kestrai launches a graph of agents that plan, act through gated tools, observe results, and converge the system. Two domains are first-class in v1:
+
+- **Software builds** — refine requirements, plan, design, code, test, review, ship.
+- **DevOps / SRE** — analyze infrastructure, author and apply manifests, orchestrate deploys, triage incidents, execute runbooks against live clusters and instances.
+
+The core (resources, reconciler, scheduler, tool gateway, model router, event log) is identical for both. What differs is the **bundle** — which Agents and Tools are loaded. Bundles ship as plugins; the core ships none.
 
 Project name: **Kestrai**. CLI: **`kestrai`**. License: **Apache 2.0**.
 
@@ -36,8 +41,8 @@ Project name: **Kestrai**. CLI: **`kestrai`**. License: **Apache 2.0**.
 - **Auth Service** — OIDC, API keys, RBAC.
 
 ### Data Plane
-- **Agent Runtime** — Long-lived workers that execute agent specs. Run in containers; spawn ephemeral sub-processes per task.
-- **Tool Gateway** — Mediates *all* tool calls (file system, shell, web, third-party APIs) with permission checks and audit.
+- **Agent Runtime** — Long-lived workers that execute agent specs. Run in containers; spawn ephemeral sub-processes per task. Tasks may be long-running (minutes to hours) with streamed output and periodic heartbeats — `kubectl logs -f`, `terraform apply`, multi-step builds are all in scope.
+- **Tool Gateway** — Mediates *all* tool calls (file system, shell, web, third-party APIs, **infrastructure: kubectl/SSH/cloud SDKs/Terraform**) with permission checks and audit. Every external action an agent takes goes through here; there is no second path.
 - **Model Router** — Selects model per task, handles fallback, retries, rate limits, cost tracking. Maintains per-provider quotas.
 
 ### Interfaces
@@ -66,9 +71,15 @@ All resources versioned `v1alpha1` → `v1beta1` → `v1` with a clearly documen
 
 ---
 
-## 4. Default Agent Roster (ships in Phase 2)
+## 4. Default Agent Bundles
 
-Each name is a **role**, not an implementation. Every one of these is swappable via the Agent CRD. The user described a similar list; this version reorganizes and trims it.
+Bundles are sets of Agent + Tool definitions distributed together — analogous to a Helm chart or a Linux distro's package group. The **core ships no bundles**; reference bundles ship as plugins on the same release cadence as Kestrai itself.
+
+Each name below is a **role**, not an implementation. Every one is swappable via the `Agent` resource. Users may mix-and-match bundles (a DevOps run can summon `Architect` from the software bundle; a software run can summon `LogAnalyst` from the DevOps bundle) — bundles are not silos.
+
+### 4.1 Software-Build Bundle (ships Phase 2)
+
+The reference flow demoed in Phase 2: spec → shipped code.
 
 **Inception phase**
 - `SpecRefiner` — clarifies ambiguity, asks user for missing info
@@ -109,6 +120,40 @@ Each name is a **role**, not an implementation. Every one of these is swappable 
 - Added `PlanReviewer` — the plan itself is the highest-leverage artifact to review.
 - `Coder` is one type instantiated many times, not one giant agent.
 
+### 4.2 DevOps / SRE Bundle (ships Phase 3 alongside the kubernetes / terraform / ssh tool plugins)
+
+The reference flow for operating real infrastructure: intent → manifests → applied state, plus incident response and runbook execution. Same orchestrator, different agents and tools.
+
+**Inspection phase**
+- `ClusterInspector` — read-only cluster state survey (workloads, events, resource pressure, recent changes)
+- `LogAnalyst` — log triage, pattern detection across services
+- `DriftDetector` — compares declared state (Git) to actual state, flags drift with blast-radius assessment
+
+**Planning phase**
+- `ArchitectSRE` — high-level infra design (mirrors `Architect` but for systems, not software)
+- `ChangePlanner` — sequences a change into safe steps with rollback points
+- `RiskAssessor` — shared with the Software-Build bundle; reused here for blast-radius and impact analysis
+
+**Execution phase**
+- `ManifestAuthor` — generates Kubernetes manifests / Terraform / Pulumi from declared intent
+- `DeployOrchestrator` — drives a rollout: apply → wait → health-check → next, with explicit gating
+- `RunbookExecutor` — runs procedural runbooks step-by-step against live infrastructure
+- `IncidentResponder` — gathers context for an active incident (logs, metrics, recent deploys, similar past incidents)
+
+**Review phase**
+- `ManifestReviewer` — reviews IaC for safety, best practices, security posture, cost impact
+- `SecurityReviewer` — shared with the Software-Build bundle
+- `PostmortemAuthor` — generates structured postmortems from event logs after incidents close
+
+**Meta**
+- `MemoryManager` — shared with the Software-Build bundle
+- `RetroSRE` — operational retrospective; feeds learnings into runbook updates
+
+**Hard rules for the DevOps bundle** (codified in the bundle's bundled Policies):
+- No agent in this bundle gets default write access to production. Production write tools require explicit `Policy` grants per-environment and per-action, with `approval: human` on the workflow phase.
+- Every `terraform apply` / `kubectl apply` / `ssh` action is recorded as an event with the full intended change and the operator who approved it.
+- Long-running tool calls (rollouts, applies, log streams) MUST use the streaming task semantics defined in Phase 1.
+
 ---
 
 ## 5. Plugin System
@@ -123,15 +168,16 @@ Three plugin types, in increasing isolation:
 
 ### Extension Points
 - `ModelProvider` — new LLM backends
-- `Tool` — new tools agents can use
+- `Tool` — new tools agents can use. Reference implementations cover both software (shell, fs, web fetch, MCP servers, OpenAPI) and infrastructure (kubectl, SSH, Terraform, cloud SDKs — see Phase 3)
 - `Storage` — state store backends
 - `Auth` — identity providers (OIDC, SAML, SSO)
 - `Secret` — secret stores (Vault, AWS KMS, GCP Secret Manager, 1Password, …)
 - `Telemetry` — exporters (Datadog, Honeycomb, Grafana Cloud, …)
-- `Notifier` — Slack, Discord, email, webhooks
-- `Guardrail` — content filters, PII redactors, budget enforcers, prompt-injection detectors
+- `Notifier` — Slack, Discord, email, webhooks, PagerDuty
+- `Guardrail` — content filters, PII redactors, budget enforcers, prompt-injection detectors, **production-write gates** (block destructive actions outside approved windows)
 - `AgentTemplate` — new agent role definitions
 - `EncryptionProvider` — at-rest and in-transit encryption strategies
+- `Bundle` — a curated set of Agents, Tools, and Policies distributed together (e.g. the DevOps bundle in §4.2)
 
 ### Example plugin manifest
 ```yaml
@@ -230,7 +276,7 @@ Deliverables:
 - CI: lint, test, build for Linux/macOS (amd64 + arm64), Apache 2.0 header check, DCO sign-off check, link-check on docs
 
 ### Phase 1 — Core Orchestration
-**Goal**: real workflow execution with pluggable models.
+**Goal**: real workflow execution with pluggable models, including long-running tool calls.
 
 Deliverables:
 - All core CRDs implemented and reconciled
@@ -238,6 +284,8 @@ Deliverables:
 - Model router with Anthropic + OpenAI + Ollama providers
 - Python agent SDK with one reference agent (`SpecRefiner`)
 - Tool gateway with shell, file system, web fetch — all sandboxed
+- **Long-running task semantics**: a `Task` may run for hours. The Tool Gateway streams stdout/stderr as events on `kestrai.events.<tenant>.tasks.<task-id>.output`. Agents heartbeat every 30s; missed heartbeats past a grace window mark the task `Stalled`. Tasks may extend their deadline via a `RequestDeadlineExtension` event subject to Policy. The CLI's `kestrai logs --follow` tails the stream.
+- **`process-exec` tool** — declaratively wrapped CLI invocations (a `Tool` resource points at a binary on PATH with an arg allowlist, env allowlist, working-dir constraint, and timeout). This is the generic primitive every infra plugin in Phase 3 builds on; it also lets users wire arbitrary CLIs (`gh`, `psql`, `helm`, `ansible`) without writing a plugin.
 - Event log with replay command (`kestrai replay run/<id>`)
 - Structured logs + OpenTelemetry traces with `tenantId` on every span
 - TUI for live workflow monitoring
@@ -255,27 +303,33 @@ Deliverables:
 - Cost tracking and budget enforcement
 - Two end-to-end demos: (a) build a small TypeScript CLI, (b) build a small FastAPI service
 
-### Phase 3 — Plugin Ecosystem
-**Goal**: extensibility is real, not theoretical.
+### Phase 3 — Plugin Ecosystem (+ DevOps bundle)
+**Goal**: extensibility is real, not theoretical. DevOps becomes a first-class user story.
 
 Deliverables:
 - gRPC plugin SDK with template repo (`kestrai-plugin-template`)
 - WASM plugin runtime via wazero
 - `kestrai plugins list/install/remove`
-- Reference plugins: Datadog telemetry, HashiCorp Vault secrets, Linear notifier, Slack notifier
-- Webhook ingress (GitHub PR opened → trigger workflow)
+- **Reference infrastructure plugins** (the DevOps bundle's tool surface):
+  - `kestrai-plugin-kubernetes` — client-go-backed Tools: `k8s.apply`, `k8s.get`, `k8s.rollout-status`, `k8s.logs-stream`, `k8s.exec`, `k8s.delete` (gated). Each Tool declares its required RBAC verbs.
+  - `kestrai-plugin-terraform` — Tools: `terraform.plan`, `terraform.apply` (always behind `approval: human`), `terraform.show`, `terraform.state-list`. Plan output is structured and indexable, not just raw text.
+  - `kestrai-plugin-ssh` — Tools: `ssh.exec`, `ssh.stream`. Host allowlist + bastion support + known_hosts pinning.
+  - `kestrai-plugin-aws` / `gcp` / `azure` — typed Tool surfaces over each cloud's SDK (read-only by default; writes require explicit Policy grants).
+- **Reference observability/notifier plugins**: Datadog telemetry, HashiCorp Vault secrets, Linear notifier, Slack notifier, PagerDuty notifier
+- **DevOps Bundle release**: the §4.2 agent roster, packaged with the infra plugins above, plus 3 worked examples (Kubernetes rolling deploy with health checks; Terraform plan-review-apply with human gate; on-call incident triage)
+- Webhook ingress (GitHub PR opened → trigger workflow; Alertmanager firing → trigger incident workflow)
 - Plugin docs, contributor guide, examples
 
 ### Phase 4 — Enterprise & Multi-tenant
-**Goal**: production-grade for teams.
+**Goal**: production-grade for teams. Note: for the DevOps bundle, several of these items are not "nice-to-have enterprise polish" — they are **adoption prerequisites**. Running an agent against a live cluster without RBAC, mTLS between control plane and data plane, and exportable audit logs is not responsible. Treat the items marked **[DevOps-blocker]** as gating for the DevOps bundle's `v1beta1` promotion, not optional.
 
 Deliverables:
 - OIDC + SAML SSO
-- RBAC with project-scoped roles
+- RBAC with project-scoped roles **[DevOps-blocker]**
 - Multi-tenant data isolation
 - Encryption at rest (envelope encryption, KMS-backed)
-- mTLS between control plane and data plane
-- Audit log export
+- mTLS between control plane and data plane **[DevOps-blocker]**
+- Audit log export **[DevOps-blocker]**
 - Helm chart for production K8s deploy
 - HA mode for control plane (active-active with NATS clustering)
 - Token + cost budgets per user / team / project
@@ -349,8 +403,10 @@ Hobbyist DX wants *"one binary, zero config, just works."* Hostable design wants
    - First workflow runs end-to-end in under 10 minutes from `git clone` to green
    - Every error includes either an actionable fix or a `kestrai explain <error-code>` reference
    - The CLI has colorized, progressive output; no walls of JSON unless `--output json`
-   - At least 5 working example workflows in `examples/`
+   - At least 5 working example workflows in `examples/` — at least one **software-build** and at least one **DevOps** (e.g. a Kubernetes rolling deploy or a Terraform plan-review-apply runbook). The bundles ship later, but the workflow YAML shape must be stable enough that the examples don't need to be rewritten.
    - `kestrai doctor` diagnoses common local setup problems
+
+7. **General-purpose core, opinionated bundles.** The core (resources, reconciler, scheduler, tool gateway, model router, event log) is domain-neutral. The opinionated parts — *which* Agents exist, *which* Tools are wired up, *which* Policies are enforced — live in **bundles** distributed as plugins (§4, §5, §8/Phase 3). v1 ships two reference bundles: Software-Build (Phase 2) and DevOps/SRE (Phase 3). Avoid the pull to bake either bundle's vocabulary into the core; if a feature only makes sense for one bundle, it belongs in that bundle's plugin, not in the API.
 
 ---
 
