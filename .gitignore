@@ -1,0 +1,67 @@
+# Build artifacts
+/bin/
+/dist/
+/build/
+*.exe
+*.test
+*.out
+
+# Go
+/vendor/
+go.work.sum
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.python-version
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / pnpm
+node_modules/
+.next/
+.turbo/
+*.tsbuildinfo
+.pnpm-store/
+
+# Generated code (regenerated from .proto)
+# Tracked: keep generated stubs in repo for now to avoid forcing protoc on every contributor.
+# Uncomment if/when we move to a generate-on-CI model.
+# /pkg/api/**/*.pb.go
+# /sdk/python/src/kestrai/proto/
+
+# State / runtime
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+/var/
+/run/
+/.kestrai/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# Secrets — belt and braces; real secrets should never be in the repo
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# Coverage / profiling
+*.coverprofile
+coverage.out
+coverage.xml
+htmlcov/
