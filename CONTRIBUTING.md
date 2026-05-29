@@ -22,7 +22,7 @@ Kestrai is a monorepo with three language workspaces:
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.24+
 - Python 3.12+ and `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Node 20+ and pnpm 9+ (`corepack enable && corepack prepare pnpm@latest --activate`)
 - `protoc` (only needed if you change `.proto` files)

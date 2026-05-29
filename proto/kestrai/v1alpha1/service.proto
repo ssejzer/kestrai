@@ -1,0 +1,218 @@
+// Copyright 2026 The Kestrai Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// gRPC service surface for the kestrai.v1alpha1 control plane: a system
+// service (health + version) plus kubectl-style CRUD for Project and
+// Workflow. Run/Agent/Task/etc. services are added in later phases.
+//
+// Tenancy is in the schema but invisible in the CLI: requests may set
+// tenant_id, but the server overrides it from the authenticated context
+// (local-dev auto-fills "default"). See CLAUDE.md and §12 of the spec.
+
+syntax = "proto3";
+
+package kestrai.v1alpha1;
+
+import "kestrai/v1alpha1/meta.proto";
+import "kestrai/v1alpha1/project.proto";
+import "kestrai/v1alpha1/workflow.proto";
+
+option go_package = "github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1";
+
+// ---------------------------------------------------------------------------
+// System: health and version. Cheap, unauthenticated-friendly endpoints the
+// CLI's `version` and `doctor` verbs lean on.
+// ---------------------------------------------------------------------------
+
+// SystemService exposes liveness and build information for the control plane.
+service SystemService {
+  // GetHealth reports whether the control plane is ready to serve requests.
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+
+  // GetVersion returns the control plane build and API version.
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse);
+}
+
+message GetHealthRequest {}
+
+message GetHealthResponse {
+  // ServingStatus mirrors grpc.health.v1 semantics without the dependency.
+  enum ServingStatus {
+    SERVING_STATUS_UNSPECIFIED = 0;
+    SERVING_STATUS_SERVING = 1;
+    SERVING_STATUS_NOT_SERVING = 2;
+  }
+
+  ServingStatus status = 1;
+}
+
+message GetVersionRequest {}
+
+message GetVersionResponse {
+  // Build version of the running binary, e.g. "0.1.0" or "0.0.0-dev".
+  string version = 1;
+
+  // API group/version this server speaks, e.g. "kestrai.dev/v1alpha1".
+  string api_version = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Project CRUD. Project is tenant-scoped but project-global, so it is keyed
+// by (tenant_id, name) only.
+// ---------------------------------------------------------------------------
+
+// ProjectService is the CRUD surface for Project resources.
+service ProjectService {
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+  rpc UpdateProject(UpdateProjectRequest) returns (UpdateProjectResponse);
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+}
+
+message CreateProjectRequest {
+  // The desired Project. The server ignores status and server-assigned
+  // metadata (uid, resource_version, generation, timestamps).
+  Project project = 1;
+}
+
+message CreateProjectResponse {
+  // The persisted Project with server-assigned metadata populated.
+  Project project = 1;
+}
+
+message GetProjectRequest {
+  // Tenant scope; overridden from the auth context when empty/mismatched.
+  string tenant_id = 1;
+
+  // metadata.name of the Project to fetch.
+  string name = 2;
+}
+
+message GetProjectResponse {
+  Project project = 1;
+}
+
+message ListProjectsRequest {
+  // Tenant scope; overridden from the auth context.
+  string tenant_id = 1;
+
+  // kubectl-style label selector, e.g. "team=core,env!=prod". Empty matches all.
+  string label_selector = 2;
+
+  // Maximum number of items to return. 0 lets the server choose a default.
+  int32 page_size = 3;
+
+  // Opaque continuation token from a previous ListMeta.continue_token.
+  string continue_token = 4;
+}
+
+message ListProjectsResponse {
+  repeated Project items = 1;
+
+  // Pagination cursor and best-effort remaining count.
+  ListMeta metadata = 2;
+}
+
+message UpdateProjectRequest {
+  // Full desired object. metadata.resource_version must match the stored
+  // value or the server rejects the write (optimistic concurrency).
+  Project project = 1;
+}
+
+message UpdateProjectResponse {
+  Project project = 1;
+}
+
+message DeleteProjectRequest {
+  string tenant_id = 1;
+  string name = 2;
+}
+
+message DeleteProjectResponse {
+  // The object as it stood at deletion time. When finalizers are pending,
+  // this carries a non-nil metadata.deletion_timestamp instead of removal.
+  Project project = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Workflow CRUD. Workflow is project-scoped, so it is keyed by
+// (tenant_id, project, name).
+// ---------------------------------------------------------------------------
+
+// WorkflowService is the CRUD surface for Workflow resources.
+service WorkflowService {
+  rpc CreateWorkflow(CreateWorkflowRequest) returns (CreateWorkflowResponse);
+  rpc GetWorkflow(GetWorkflowRequest) returns (GetWorkflowResponse);
+  rpc ListWorkflows(ListWorkflowsRequest) returns (ListWorkflowsResponse);
+  rpc UpdateWorkflow(UpdateWorkflowRequest) returns (UpdateWorkflowResponse);
+  rpc DeleteWorkflow(DeleteWorkflowRequest) returns (DeleteWorkflowResponse);
+}
+
+message CreateWorkflowRequest {
+  // metadata.project must be set; the server validates the Project exists.
+  Workflow workflow = 1;
+}
+
+message CreateWorkflowResponse {
+  Workflow workflow = 1;
+}
+
+message GetWorkflowRequest {
+  string tenant_id = 1;
+
+  // Owning Project's metadata.name.
+  string project = 2;
+
+  // metadata.name of the Workflow to fetch.
+  string name = 3;
+}
+
+message GetWorkflowResponse {
+  Workflow workflow = 1;
+}
+
+message ListWorkflowsRequest {
+  string tenant_id = 1;
+
+  // Restrict to one Project. Empty lists across all projects in the tenant.
+  string project = 2;
+
+  string label_selector = 3;
+  int32 page_size = 4;
+  string continue_token = 5;
+}
+
+message ListWorkflowsResponse {
+  repeated Workflow items = 1;
+  ListMeta metadata = 2;
+}
+
+message UpdateWorkflowRequest {
+  Workflow workflow = 1;
+}
+
+message UpdateWorkflowResponse {
+  Workflow workflow = 1;
+}
+
+message DeleteWorkflowRequest {
+  string tenant_id = 1;
+  string project = 2;
+  string name = 3;
+}
+
+message DeleteWorkflowResponse {
+  Workflow workflow = 1;
+}

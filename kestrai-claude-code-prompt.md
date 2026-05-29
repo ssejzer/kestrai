@@ -242,7 +242,7 @@ kestrai approve run/build-saas-mvp-abc123 --phase planning
 
 ## 7. Tech Stack
 
-- **Control plane**: Go 1.22+, gRPC, Protobuf, sqlc or Bun for SQL, NATS JetStream for event log
+- **Control plane**: Go 1.24+, gRPC, Protobuf, sqlc or Bun for SQL, NATS JetStream for event log
 - **Agent SDK**: Python 3.12+ (primary, with uv), TypeScript (Phase 2)
 - **CLI**: Go, Cobra, Viper
 - **GUI**: Next.js 15, React Server Components, Tailwind, shadcn/ui, TanStack Query, React Flow for graphs
