@@ -16,7 +16,7 @@ PNPM          ?= pnpm
 BUF           ?= buf
 
 VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)
-GO_LDFLAGS    := -X main.version=$(VERSION)
+GO_LDFLAGS    := -X github.com/kestrai/kestrai/internal/version.Version=$(VERSION)
 
 BIN_DIR       := bin
 KESTRAI_BIN   := $(BIN_DIR)/kestrai

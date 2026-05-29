@@ -12,25 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command kestrai is the entry point for the Kestrai control plane and CLI.
-//
-// In Phase 0 this binary only prints its version. The real subcommands
-// (`up`, `apply`, `get`, `describe`, `delete`, `logs`, `init`, `doctor`,
-// `version`, `explain`) are wired in subsequent commits.
-package main
+package server
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/kestrai/kestrai/internal/version"
+	apiv1 "github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1"
 )
 
-func main() {
-	if len(os.Args) >= 2 && os.Args[1] == "version" {
-		fmt.Println(version.Version)
-		return
-	}
-	fmt.Fprintf(os.Stderr, "kestrai %s — Phase 0 scaffold. Subcommands not wired yet.\n", version.Version)
-	os.Exit(0)
+// workflowService implements WorkflowService CRUD. Like projectService, the
+// embedded Unimplemented type returns codes.Unimplemented for every RPC until
+// the state store lands; the type is registered now to keep the API surface
+// and reflection output stable.
+type workflowService struct {
+	apiv1.UnimplementedWorkflowServiceServer
 }

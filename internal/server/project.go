@@ -12,25 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command kestrai is the entry point for the Kestrai control plane and CLI.
-//
-// In Phase 0 this binary only prints its version. The real subcommands
-// (`up`, `apply`, `get`, `describe`, `delete`, `logs`, `init`, `doctor`,
-// `version`, `explain`) are wired in subsequent commits.
-package main
+package server
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/kestrai/kestrai/internal/version"
+	apiv1 "github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1"
 )
 
-func main() {
-	if len(os.Args) >= 2 && os.Args[1] == "version" {
-		fmt.Println(version.Version)
-		return
-	}
-	fmt.Fprintf(os.Stderr, "kestrai %s — Phase 0 scaffold. Subcommands not wired yet.\n", version.Version)
-	os.Exit(0)
+// projectService implements ProjectService CRUD. The embedded Unimplemented
+// type makes every RPC return codes.Unimplemented until the SQLite state
+// store is wired in (Phase 0 backlog: state store + migrations). Handler
+// methods are filled in then; the type exists now so the surface is stable
+// and registration is exercised by tests.
+type projectService struct {
+	apiv1.UnimplementedProjectServiceServer
 }
