@@ -12,17 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command kestrai is the entry point for the Kestrai control plane and CLI.
-// The command tree lives in internal/cli; main only translates its result into
-// a process exit code so subcommand deferred cleanup runs first.
-package main
+package cli
 
 import (
-	"os"
+	"fmt"
 
-	"github.com/kestrai/kestrai/internal/cli"
+	"github.com/spf13/cobra"
+
+	"github.com/kestrai/kestrai/internal/version"
 )
 
-func main() {
-	os.Exit(cli.Execute())
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the kestrai version",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			fmt.Fprintf(cmd.OutOrStdout(), "kestrai %s (%s)\n", version.Version, version.APIVersion)
+			return nil
+		},
+	}
 }

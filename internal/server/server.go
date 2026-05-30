@@ -26,11 +26,12 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	apiv1 "github.com/kestrai/kestrai/gen/go/kestrai/v1alpha1"
+	"github.com/kestrai/kestrai/internal/store"
 	"github.com/kestrai/kestrai/internal/version"
 )
 
-// Config tunes a Server. The zero value is valid: empty fields fall back to
-// the compiled-in build metadata.
+// Config tunes a Server. The zero value serves SystemService only; Project and
+// Workflow CRUD require a non-nil Store.
 type Config struct {
 	// Version reported by SystemService.GetVersion. Defaults to the build
 	// version injected via -ldflags.
@@ -39,6 +40,10 @@ type Config struct {
 	// APIVersion reported by SystemService.GetVersion. Defaults to the
 	// API group/version this build speaks.
 	APIVersion string
+
+	// Store backs Project/Workflow CRUD. When nil those services answer
+	// codes.Unimplemented via the embedded Unimplemented* types.
+	Store store.Store
 }
 
 // Server wraps a configured gRPC server with the Kestrai services registered.
@@ -60,8 +65,15 @@ func New(cfg Config, opts ...grpc.ServerOption) *Server {
 
 	g := grpc.NewServer(opts...)
 	apiv1.RegisterSystemServiceServer(g, &systemService{version: cfg.Version, apiVersion: cfg.APIVersion})
-	apiv1.RegisterProjectServiceServer(g, &projectService{})
-	apiv1.RegisterWorkflowServiceServer(g, &workflowService{})
+	if cfg.Store != nil {
+		apiv1.RegisterProjectServiceServer(g, &projectService{store: cfg.Store})
+		apiv1.RegisterWorkflowServiceServer(g, &workflowService{store: cfg.Store})
+	} else {
+		// No store wired (e.g. system-only deployments): CRUD answers
+		// codes.Unimplemented rather than dereferencing a nil store.
+		apiv1.RegisterProjectServiceServer(g, apiv1.UnimplementedProjectServiceServer{})
+		apiv1.RegisterWorkflowServiceServer(g, apiv1.UnimplementedWorkflowServiceServer{})
+	}
 
 	// Reflection lets grpcurl and `kestrai doctor` introspect the surface
 	// without a compiled descriptor set.
