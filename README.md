@@ -228,6 +228,8 @@ See [Plugin Authoring](https://kestrai.dev/docs/plugins) to ship your own.
 
 Kestrai is **alpha**. The API group is `v1alpha1` and **will change** without deprecation periods before `v1beta1`. Use it to experiment, to file issues, and to contribute. Do not run unattended on production workloads yet.
 
+**What runs today (Phase 0):** `kestrai up` starts the all-in-one control plane — gRPC API + SQLite state store + local-dev auth + a Workflow reconciler, in one process. The API serves health/version and `Project`/`Workflow` CRUD; the reconciler validates Workflows and stamps their status. The Quickstart above is the *target* experience — agent execution and the resource verbs (`init`, `apply`, `logs`, `top`, `doctor`, `explain`) are still being built. See [CLAUDE.md](./CLAUDE.md) for the precise landed-vs-pending breakdown and [ARCHITECTURE.md](./ARCHITECTURE.md) for the design decisions (ADRs).
+
 Current phase: see the [milestones page](https://github.com/kestrai/kestrai/milestones) and [public roadmap](https://kestrai.dev/roadmap).
 
 ---

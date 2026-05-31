@@ -17,6 +17,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 // colorEnabled reports whether to emit ANSI color: only when stderr is a
@@ -58,4 +59,20 @@ func statusf(format string, args ...any) {
 // dimf writes a dimmed informational line to stderr.
 func dimf(format string, args ...any) {
 	fmt.Fprintln(os.Stderr, colorize(ansiDim, fmt.Sprintf(format, args...)))
+}
+
+// durationShort renders the elapsed time since t in a compact kubectl-style
+// form: "8s", "5m", "3h", "2d".
+func durationShort(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	}
 }

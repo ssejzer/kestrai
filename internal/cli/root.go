@@ -32,6 +32,8 @@ const (
 	EnvAPIAddress = "KESTRAI_ADDRESS"
 	// EnvDBPath overrides the SQLite path without a flag.
 	EnvDBPath = "KESTRAI_DB_PATH"
+	// EnvToken supplies a bearer token for a static-token server.
+	EnvToken = "KESTRAI_TOKEN"
 )
 
 // newRootCmd assembles the command tree.
@@ -44,7 +46,9 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(newUpCmd(), newServerCmd(), newVersionCmd())
+	cfg := &clientConfig{}
+	cfg.bindFlags(root.PersistentFlags())
+	root.AddCommand(newUpCmd(), newServerCmd(), newVersionCmd(), newApplyCmd(cfg), newGetCmd(cfg))
 	return root
 }
 
